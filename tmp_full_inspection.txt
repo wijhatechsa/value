@@ -1,0 +1,568 @@
+import { ClientInfoCard } from './ClientInfoCard';
+import React, { useState, useEffect } from 'react';
+import { supabase, Property, Inspection } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { Save, Plus, X } from 'lucide-react';
+
+interface InspectionFormProps {
+  property: Property;
+  inspection: Inspection | null;
+  onSuccess: () => void;
+  canEdit: boolean;
+}
+
+export const InspectionForm: React.FC<InspectionFormProps> = ({
+  property,
+  inspection,
+  onSuccess,
+  canEdit,
+}) => {
+  const { user, profile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [amenity, setAmenity] = useState('');
+  const [defect, setDefect] = useState('');
+
+  const [formData, setFormData] = useState({
+    inspection_date: '',
+    structural_condition: '',
+    interior_condition: '',
+    exterior_condition: '',
+    amenities: [] as string[],
+    defects: [] as string[],
+    notes: '',
+    status: 'pending',
+    building_license_no: '',
+    plan_no: '',
+    land_use: '',
+    onsite_services: [] as string[],
+    parcel_no: '',
+    neighbor_built: false,
+    land_nature: '',
+    is_occupied: false,
+  });
+
+  useEffect(() => {
+    if (inspection) {
+      setFormData({
+        inspection_date: inspection.inspection_date || '',
+        structural_condition: inspection.structural_condition || '',
+        interior_condition: inspection.interior_condition || '',
+        exterior_condition: inspection.exterior_condition || '',
+        amenities: (inspection.amenities as any) || [],
+        defects: (inspection.defects as any) || [],
+        notes: inspection.notes || '',
+        status: inspection.status,
+        building_license_no: (inspection as any).building_license_no || '',
+        plan_no: (inspection as any).plan_no || '',
+        land_use: (inspection as any).land_use || '',
+        onsite_services: ((inspection as any).onsite_services as any) || [],
+        parcel_no: (inspection as any).parcel_no || '',
+        neighbor_built: !!(inspection as any).neighbor_built,
+        land_nature: (inspection as any).land_nature || '',
+        is_occupied: !!(inspection as any).is_occupied,
+      });
+    }
+  }, [inspection]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const inspectionData = {
+        property_id: property.id,
+        inspector_id: user?.id,
+        inspection_date: formData.inspection_date,
+        structural_condition: formData.structural_condition,
+        interior_condition: formData.interior_condition,
+        exterior_condition: formData.exterior_condition,
+        amenities: formData.amenities,
+        defects: formData.defects,
+        notes: formData.notes,
+        status: formData.status,
+        completed_at: formData.status === 'completed' ? new Date().toISOString() : null,
+        building_license_no: formData.building_license_no || null,
+        plan_no: formData.plan_no || null,
+        land_use: formData.land_use || null,
+        onsite_services: formData.onsite_services || [],
+        parcel_no: formData.parcel_no || null,
+        neighbor_built: !!formData.neighbor_built,
+        land_nature: formData.land_nature || null,
+        is_occupied: !!formData.is_occupied,
+      };
+
+      if (inspection) {
+        const { error: updateError } = await supabase
+          .from('inspections')
+          .update(inspectionData)
+          .eq('id', inspection.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('inspections')
+          .insert(inspectionData);
+        if (insertError) throw insertError;
+      }
+
+      if (formData.status === 'completed') {
+        await supabase
+          .from('properties')
+          .update({ status: 'inspection' })
+          .eq('id', property.id);
+      }
+
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addAmenity = () => {
+    if (amenity.trim()) {
+      setFormData({ ...formData, amenities: [...formData.amenities, amenity.trim()] });
+      setAmenity('');
+    }
+  };
+
+  const removeAmenity = (index: number) => {
+    setFormData({
+      ...formData,
+      amenities: formData.amenities.filter((_, i) => i !== index),
+    });
+  };
+
+  const addDefect = () => {
+    if (defect.trim()) {
+      setFormData({ ...formData, defects: [...formData.defects, defect.trim()] });
+      setDefect('');
+    }
+  };
+
+  const removeDefect = (index: number) => {
+    setFormData({
+      ...formData,
+      defects: formData.defects.filter((_, i) => i !== index),
+    });
+  };
+
+  if (!canEdit && !inspection) {
+    return (
+      <div className="text-center py-8 text-gray-600">
+        ط¸â€‍ط¸â€¦ ط¸ظ¹ط·ع¾ط¸â€¦ ط·آ¥ط·آ¬ط·آ±ط·آ§ط·طŒ ط·آ§ط¸â€‍ط¸ظ¾ط·آ­ط·آµ ط·آ¨ط·آ¹ط·آ¯
+      </div>
+    );
+  }
+
+  if (!canEdit && inspection) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="text-sm font-medium text-gray-600">ط·ع¾ط·آ§ط·آ±ط¸ظ¹ط·آ® ط·آ§ط¸â€‍ط¸ظ¾ط·آ­ط·آµ</label>
+            <p className="text-lg text-gray-800 mt-1">{inspection.inspection_date}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ¥ط¸â€ ط·آ´ط·آ§ط·آ¦ط¸ظ¹ط·آ©</label>
+            <p className="text-lg text-gray-800 mt-1">{inspection.structural_condition}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ¯ط·آ§ط·آ®ط¸â€‍ط¸ظ¹ط·آ©</label>
+            <p className="text-lg text-gray-800 mt-1">{inspection.interior_condition}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ®ط·آ§ط·آ±ط·آ¬ط¸ظ¹ط·آ©</label>
+            <p className="text-lg text-gray-800 mt-1">{inspection.exterior_condition}</p>
+          </div>
+        </div>
+        {inspection.amenities && inspection.amenities.length > 0 && (
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-2">ط·آ§ط¸â€‍ط¸â€¦ط·آ±ط·آ§ط¸ظ¾ط¸â€ڑ</label>
+            <div className="flex flex-wrap gap-2">
+              {inspection.amenities.map((item: string, index: number) => (
+                <span key={index} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {inspection.defects && inspection.defects.length > 0 && (
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-2">ط·آ§ط¸â€‍ط·آ¹ط¸ظ¹ط¸ث†ط·آ¨</label>
+            <div className="flex flex-wrap gap-2">
+              {inspection.defects.map((item: string, index: number) => (
+                <span key={index} className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {inspection.notes && (
+          <div>
+            <label className="text-sm font-medium text-gray-600">ط¸â€¦ط¸â€‍ط·آ§ط·آ­ط·آ¸ط·آ§ط·ع¾</label>
+            <p className="text-gray-800 mt-1 whitespace-pre-wrap">{inspection.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {profile?.role && profile.role !== 'client' && (
+        <div className="mb-4"><ClientInfoCard property={property} /></div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">تاريخ المعاينة</label>
+          <input
+            type="date"
+            value={formData.inspection_date}
+            onChange={(e) => setFormData({ ...formData, inspection_date: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ©</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط­ط§ظ„ط© ط§ظ„ظ…ط¹ط§ظٹظ†ط©</label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            dir="rtl"
+          >
+            <option value="pending">ظ‚ظٹط¯ ط§ظ„ط§ظ†طھط¸ط§ط±</option>
+            <option value="in_progress">ط¬ط§ط±ظٹط©</option>
+            <option value="completed">ظ…ظƒطھظ…ظ„ط©</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ¥ط¸â€ ط·آ´ط·آ§ط·آ¦ط¸ظ¹ط·آ©</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط§ظ„ط­ط§ظ„ط© ط§ظ„ط¥ظ†ط´ط§ط¦ظٹط©</label>
+          <select
+            value={formData.structural_condition}
+            onChange={(e) => setFormData({ ...formData, structural_condition: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            required
+            dir="rtl"
+          >
+            <option value="">ط·آ§ط·آ®ط·ع¾ط·آ±</option>
+            <option value="excellent">ظ…ظ…طھط§ط²</option>
+            <option value="good">ط¬ظٹط¯</option>
+            <option value="fair">ظ…ظ‚ط¨ظˆظ„</option>
+            <option value="poor">ط¶ط¹ظٹظپ</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ¯ط·آ§ط·آ®ط¸â€‍ط¸ظ¹ط·آ©</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط§ظ„ط­ط§ظ„ط© ط§ظ„ط¯ط§ط®ظ„ظٹط©</label>
+          <select
+            value={formData.interior_condition}
+            onChange={(e) => setFormData({ ...formData, interior_condition: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            required
+            dir="rtl"
+          >
+            <option value="">ط·آ§ط·آ®ط·ع¾ط·آ±</option>
+            <option value="excellent">ظ…ظ…طھط§ط²</option>
+            <option value="good">ط¬ظٹط¯</option>
+            <option value="fair">ظ…ظ‚ط¨ظˆظ„</option>
+            <option value="poor">ط¶ط¹ظٹظپ</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ§ط¸â€‍ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ®ط·آ§ط·آ±ط·آ¬ط¸ظ¹ط·آ©</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط§ظ„ط­ط§ظ„ط© ط§ظ„ط®ط§ط±ط¬ظٹط©</label>
+          <select
+            value={formData.exterior_condition}
+            onChange={(e) => setFormData({ ...formData, exterior_condition: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            required
+            dir="rtl"
+          >
+            <option value="">ط·آ§ط·آ®ط·ع¾ط·آ±</option>
+            <option value="excellent">ظ…ظ…طھط§ط²</option>
+            <option value="good">ط¬ظٹط¯</option>
+            <option value="fair">ظ…ظ‚ط¨ظˆظ„</option>
+            <option value="poor">ط¶ط¹ظٹظپ</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Additional site fields editable by inspector */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">رقم رخصة البناء</label>
+          <input
+            type="text"
+            value={formData.building_license_no}
+            onChange={(e) => setFormData({ ...formData, building_license_no: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">رقم المخطط</label>
+          <input
+            type="text"
+            value={formData.plan_no}
+            onChange={(e) => setFormData({ ...formData, plan_no: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">استخدام الأرض</label>
+          <select
+            value={formData.land_use}
+            onChange={(e) => setFormData({ ...formData, land_use: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            dir="rtl"
+          >
+            <option value="">اختر</option>
+            <option value="residential">سكني</option>
+            <option value="commercial">تجاري</option>
+            <option value="industrial">صناعي</option>
+            <option value="land">أرض</option>
+            <option value="mixed">مخلوط</option>
+          </select>
+        </div>
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">الخدمات بالموقع (وسوم)</label>
+          <TagInput
+            value={formData.onsite_services}
+            onChange={(v) => setFormData({ ...formData, onsite_services: v })}
+            suggestions={[ 'electricity', 'water', 'sewage', 'gas', 'fiber', 'paved_road', 'street_lighting' ]}
+          />
+        </div>
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">رقم القطعة</label>
+          <input
+            type="text"
+            value={formData.parcel_no}
+            onChange={(e) => setFormData({ ...formData, parcel_no: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+        <div>
+<label className="block text-sm font-medium text-gray-700 mb-2">طبيعة الأرض</label>
+          <select
+            value={formData.land_nature}
+            onChange={(e) => setFormData({ ...formData, land_nature: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            dir="rtl"
+          >
+            <option value="">اختر</option>
+            <option value="flat">مسطحة</option>
+            <option value="sloped">منحدرة</option>
+            <option value="corner">زاوية</option>
+            <option value="interior">داخلية</option>
+            <option value="on_main_road">على شارع رئيسي</option>
+            <option value="inside_block">داخل البلوك</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="neighbor_built" type="checkbox" checked={!!formData.neighbor_built} onChange={(e) => setFormData({ ...formData, neighbor_built: e.target.checked })} />
+          <label htmlFor="neighbor_built" className="text-sm text-gray-700">الجار مبني</label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="is_occupied" type="checkbox" checked={!!formData.is_occupied} onChange={(e) => setFormData({ ...formData, is_occupied: e.target.checked })} />
+          <label htmlFor="is_occupied" className="text-sm text-gray-700">شاغلية العقار</label>
+        </div>
+      </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ§ط¸â€‍ط·آ®ط·آ¯ط¸â€¦ط·آ§ط·ع¾ ط·آ¨ط·آ§ط¸â€‍ط¸â€¦ط¸ث†ط¸â€ڑط·آ¹ (ط¸ث†ط·آ³ط¸ث†ط¸â€¦)</label>
+          <TagInput
+            value={formData.onsite_services}
+            onChange={(v) => setFormData({ ...formData, onsite_services: v })}
+            suggestions={[ 'electricity', 'water', 'sewage', 'gas', 'fiber', 'paved_road', 'street_lighting' ]}
+          />
+        </div>
+        <div>
+            placeholder="أضف ميزة"
+          <input
+            type="text"
+            value={formData.parcel_no}
+            onChange={(e) => setFormData({ ...formData, parcel_no: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ط·آ·ط·آ¨ط¸ظ¹ط·آ¹ط·آ© ط·آ§ط¸â€‍ط·آ£ط·آ±ط·آ¶</label>
+          <select
+            value={formData.land_nature}
+            onChange={(e) => setFormData({ ...formData, land_nature: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            dir="rtl"
+          >
+            <option value="">ط·آ§ط·آ®ط·ع¾ط·آ±</option>
+            <option value="flat">ط¸â€¦ط·آ³ط·ع¾ط¸ث†ط¸ظ¹ط·آ©</option>
+            <option value="sloped">ط¸â€¦ط¸â€ ط·آ­ط·آ¯ط·آ±ط·آ©</option>
+            <option value="corner">ط·آ²ط·آ§ط¸ث†ط¸ظ¹ط·آ©</option>
+            <option value="interior">ط·آ¯ط·آ§ط·آ®ط¸â€‍ط¸ظ¹ط·آ©</option>
+            <option value="on_main_road">ط·آ¹ط¸â€‍ط¸â€° ط·آ´ط·آ§ط·آ±ط·آ¹ ط·آ±ط·آ¦ط¸ظ¹ط·آ³ط¸ظ¹</option>
+            <option value="inside_block">ط·آ¯ط·آ§ط·آ®ط¸â€‍ ط·آ§ط¸â€‍ط·آ¨ط¸â€‍ط¸ث†ط¸ئ’</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="neighbor_built" type="checkbox" checked={!!formData.neighbor_built} onChange={(e) => setFormData({ ...formData, neighbor_built: e.target.checked })} />
+          <label htmlFor="neighbor_built" className="text-sm text-gray-700">ط·آ§ط¸â€‍ط·آ¬ط·آ§ط·آ± ط¸â€¦ط·آ¨ط¸â€ ط¸ظ¹</label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="is_occupied" type="checkbox" checked={!!formData.is_occupied} onChange={(e) => setFormData({ ...formData, is_occupied: e.target.checked })} />
+          <label htmlFor="is_occupied" className="text-sm text-gray-700">ط·آ´ط·آ§ط·ط›ط¸â€‍ط¸ظ¹ط·آ© ط·آ§ط¸â€‍ط·آ¹ط¸â€ڑط·آ§ط·آ±</label>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Amenities</label>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={amenity}
+            onChange={(e) => setAmenity(e.target.value)}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            placeholder="Add amenity"
+            dir="rtl"
+          />
+          <button
+            type="button"
+            onClick={addAmenity}
+            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {formData.amenities.map((item, index) => (
+            <span key={index} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+              {item}
+              <button type="button" onClick={() => removeAmenity(index)}>
+                <X className="w-4 h-4" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Defects</label>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={defect}
+            onChange={(e) => setDefect(e.target.value)}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            placeholder="Add defect"
+            dir="rtl"
+          />
+          <button
+            type="button"
+            onClick={addDefect}
+            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {formData.defects.map((item, index) => (
+            <span key={index} className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+              {item}
+              <button type="button" onClick={() => removeDefect(index)}>
+                <X className="w-4 h-4" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+
+        <textarea
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+          rows={4}
+          dir="rtl"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white py-3 rounded-lg font-medium hover:from-amber-600 hover:to-yellow-700 transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        <Save className="w-5 h-5" />
+        {loading ? 'Saving...' : 'Save Inspection'}
+      </button>
+    </form>
+  );
+};
+
+// Simple tag input with suggestions
+const TagInput: React.FC<{ value: string[]; onChange: (v: string[]) => void; suggestions?: string[]; }> = ({ value, onChange, suggestions = [] }) => {
+  const [text, setText] = React.useState('');
+  const add = (t: string) => {
+    const v = t.trim();
+    if (!v) return;
+    if ((value || []).includes(v)) return;
+    onChange([...(value || []), v]);
+    setText('');
+  };
+  const remove = (t: string) => onChange((value || []).filter(x => x !== t));
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(text.toLowerCase()) && !(value || []).includes(s));
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {(value || []).map(tag => (
+          <span key={tag} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-200 text-xs">
+            {tag}
+            <button onClick={() => remove(tag)} className="text-amber-700 hover:text-amber-900">ط£â€”</button>
+          </span>
+        ))}
+      </div>
+      <input
+        className="w-full border rounded-lg px-3 py-2"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            add(text);
+          }
+        }}
+        placeholder="ط·آ£ط·آ¶ط¸ظ¾ ط·آ®ط·آ¯ط¸â€¦ط·آ© ط¸ث†ط·آ§ط·آ¶ط·ط›ط·آ· Enter"
+      />
+      {filtered.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {filtered.map(s => (
+            <button type="button" key={s} onClick={() => add(s)} className="px-2 py-1 rounded border text-xs bg-gray-50 border-gray-200 hover:bg-amber-200 hover:border-amber-300">
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+
+
+
+

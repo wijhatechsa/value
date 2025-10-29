@@ -1,0 +1,53 @@
+
+              {(property as any).location_lat && (property as any).location_lng && (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-600">الموقع على الخريطة</label>
+                  <div ref={mapElRef} className="w-full h-72 rounded-lg border border-gray-200 mt-2" />
+                  <div className="text-xs text-gray-600 mt-2">lat: {(property as any).location_lat}, lng: {(property as any).location_lng}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'inspection' && (
+          <InspectionForm
+            property={property}
+            inspection={inspection}
+            onSuccess={loadWorkflowData}
+            canEdit={canAccessInspection()}
+          />
+        )}
+
+        {activeTab === 'appraisal' && (
+          <AppraisalForm
+            property={property}
+            inspection={inspection}
+            appraisal={appraisal}
+            onSuccess={loadWorkflowData}
+            canEdit={canAccessAppraisal()}
+          />
+        )}
+
+        {activeTab === 'review' && appraisal && (
+          <ReviewForm
+            appraisal={appraisal}
+            review={review}
+            onSuccess={loadWorkflowData}
+            canEdit={canAccessReview()}
+          />
+        )}
+
+        {activeTab === 'delivery' && appraisal && review?.review_status === 'approved' && (
+          <DeliveryForm
+            appraisal={appraisal}
+            delivery={delivery}
+            onSuccess={loadWorkflowData}
+            canEdit={canAccessReview()}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
