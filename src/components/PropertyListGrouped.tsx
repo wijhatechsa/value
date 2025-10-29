@@ -11,6 +11,8 @@ export const PropertyListGrouped: React.FC<Props> = ({ onSelectProperty }) => {
   const { user, profile } = useAuth();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -89,8 +91,22 @@ export const PropertyListGrouped: React.FC<Props> = ({ onSelectProperty }) => {
     );
   }
 
+  const norm = (v: any) => (v == null ? '' : String(v).toLowerCase());
+  const s = norm(search);
+  const passesSearch = (p: any) => {
+    if (!s) return true;
+    return [p.property_address, p.owner_name, p.owner_contact, p.parcel_no]
+      .map(norm)
+      .some((x) => x.includes(s));
+  };
+
   const groups: Record<string, any[]> = { intake: [], inspection: [], appraisal: [], review: [], completed: [] };
-  properties.forEach((p) => { (groups[deriveStatus(p)] || groups.intake).push(p); });
+  properties.forEach((p) => {
+    const st = deriveStatus(p);
+    if (statusFilter.length && !statusFilter.includes(st)) return;
+    if (!passesSearch(p)) return;
+    (groups[st] || groups.intake).push(p);
+  });
   const groupOrder: Array<keyof typeof groups> = ['intake', 'inspection', 'appraisal', 'review', 'completed'];
   const groupTitle: Record<string, string> = { intake: 'قائمة الاستقبال', inspection: 'قائمة الفحص', appraisal: 'قائمة التقييم', review: 'قائمة المراجعة', completed: 'قائمة المكتمل' };
 
@@ -138,6 +154,34 @@ export const PropertyListGrouped: React.FC<Props> = ({ onSelectProperty }) => {
 
   return (
     <div className="space-y-10">
+      <div className="bg-white rounded-xl border p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+        <div className="flex-1">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg"
+            placeholder="ابحث بعنوان العقار، اسم العميل، رقم القطعة..."
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(['intake','inspection','appraisal','review','completed'] as const).map((st) => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setStatusFilter((prev) => prev.includes(st) ? prev.filter(x=>x!==st) : [...prev, st])}
+              className={`px-3 py-1 rounded-full text-sm border ${statusFilter.includes(st) ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300'}`}
+              title={`تصفية حسب ${getStatusText(st)}`}
+            >
+              {getStatusText(st)}
+            </button>
+          ))}
+          {(statusFilter.length > 0 || search) && (
+            <button type="button" onClick={() => { setStatusFilter([]); setSearch(''); }} className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700 border border-gray-300">
+              مسح التصفية
+            </button>
+          )}
+        </div>
+      </div>
       {groupOrder.map((g) => (
         groups[g].length ? (
           <section key={g}>
