@@ -123,7 +123,39 @@ export const FullReport: React.FC<{ appraisalId: string; onBack: () => void }> =
           setError(error.message);
         }
       } else {
-        setRow(data as any);
+        let base = data as any;
+        // Backfill boundaries/services/docs if the SQL view doesn't include them yet
+        const needsBackfill =
+          base.boundary_north === undefined ||
+          base.boundary_south === undefined ||
+          base.boundary_east === undefined ||
+          base.boundary_west === undefined ||
+          base.public_services === undefined ||
+          base.health_services === undefined ||
+          base.deed_number === undefined ||
+          base.deed_date === undefined ||
+          base.doc_building_license_no === undefined ||
+          base.doc_building_license_date === undefined ||
+          base.purpose === undefined ||
+          base.value_basis === undefined ||
+          base.method_used === undefined ||
+          base.currency === undefined ||
+          base.ownership_type === undefined ||
+          base.assignment_date === undefined ||
+          base.inspection_date_ro === undefined ||
+          base.inspection_time_ro === undefined ||
+          base.assumptions === undefined;
+
+        if (needsBackfill) {
+          try {
+            const patched = await backfillFromAppraisal(appraisalId, base);
+            setRow(patched);
+          } catch {
+            setRow(base);
+          }
+        } else {
+          setRow(base);
+        }
       }
       setLoading(false);
     })();
@@ -237,7 +269,64 @@ export const FullReport: React.FC<{ appraisalId: string; onBack: () => void }> =
       report_url: delivery.report_url ?? null,
       delivered_at: delivery.delivered_at,
       delivery_created_at: delivery.created_at,
+
+      // backfill docs/boundaries/services from appraisal
+      deed_number: (appraisal as any)?.deed_number ?? null,
+      deed_date: (appraisal as any)?.deed_date ?? null,
+      doc_building_license_no:
+        (appraisal as any)?.doc_building_license_no ?? (inspection as any)?.building_license_no ?? null,
+      doc_building_license_date: (appraisal as any)?.doc_building_license_date ?? null,
+      boundary_north: (appraisal as any)?.boundary_north ?? null,
+      boundary_south: (appraisal as any)?.boundary_south ?? null,
+      boundary_east: (appraisal as any)?.boundary_east ?? null,
+      boundary_west: (appraisal as any)?.boundary_west ?? null,
+      public_services: (appraisal as any)?.public_services ?? null,
+      health_services: (appraisal as any)?.health_services ?? null,
+
+      // appraisal terms
+      purpose: (appraisal as any)?.purpose ?? null,
+      value_basis: (appraisal as any)?.value_basis ?? null,
+      method_used: (appraisal as any)?.method_used ?? null,
+      currency: (appraisal as any)?.currency ?? null,
+      ownership_type: (appraisal as any)?.ownership_type ?? null,
+      assignment_date: (appraisal as any)?.assignment_date ?? null,
+      inspection_date_ro: (appraisal as any)?.inspection_date_ro ?? (inspection as any)?.inspection_date ?? null,
+      inspection_time_ro: (appraisal as any)?.inspection_time_ro ?? null,
+      assumptions: (appraisal as any)?.assumptions ?? null,
     } as FullReportRow;
+  };
+
+  const backfillFromAppraisal = async (appraisalId: string, base: any): Promise<FullReportRow> => {
+    const { data: appraisal } = await supabase
+      .from('appraisals')
+      .select('*')
+      .eq('id', appraisalId)
+      .maybeSingle<Appraisal>();
+    if (!appraisal) return base as FullReportRow;
+    const patched: any = { ...base };
+    const pickIfUndef = (k: string, v: any) => {
+      if (patched[k] === undefined) patched[k] = v ?? null;
+    };
+    pickIfUndef('deed_number', (appraisal as any).deed_number);
+    pickIfUndef('deed_date', (appraisal as any).deed_date);
+    pickIfUndef('doc_building_license_no', (appraisal as any).doc_building_license_no);
+    pickIfUndef('doc_building_license_date', (appraisal as any).doc_building_license_date);
+    pickIfUndef('boundary_north', (appraisal as any).boundary_north);
+    pickIfUndef('boundary_south', (appraisal as any).boundary_south);
+    pickIfUndef('boundary_east', (appraisal as any).boundary_east);
+    pickIfUndef('boundary_west', (appraisal as any).boundary_west);
+    pickIfUndef('public_services', (appraisal as any).public_services);
+    pickIfUndef('health_services', (appraisal as any).health_services);
+    pickIfUndef('purpose', (appraisal as any).purpose);
+    pickIfUndef('value_basis', (appraisal as any).value_basis);
+    pickIfUndef('method_used', (appraisal as any).method_used);
+    pickIfUndef('currency', (appraisal as any).currency);
+    pickIfUndef('ownership_type', (appraisal as any).ownership_type);
+    pickIfUndef('assignment_date', (appraisal as any).assignment_date);
+    pickIfUndef('inspection_date_ro', (appraisal as any).inspection_date_ro);
+    pickIfUndef('inspection_time_ro', (appraisal as any).inspection_time_ro);
+    pickIfUndef('assumptions', (appraisal as any).assumptions);
+    return patched as FullReportRow;
   };
 
   const canView = () => {
@@ -341,13 +430,27 @@ export const FullReport: React.FC<{ appraisalId: string; onBack: () => void }> =
               <div className="md:col-span-2">
                 <div className="text-sm text-gray-700 mb-2">الخدمات بالموقع:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(row.onsite_services as any[] | null)?.length ? (
-                    (row.onsite_services as any[]).map((s, i) => (
-                      <span key={i} className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-xs">{String(s)}</span>
-                    ))
-                  ) : (
-                    <span>-</span>
-                  )}
+                  {(() => {
+                    const v: any = (row as any).onsite_services;
+                    let arr: any[] = Array.isArray(v) ? v : [];
+                    if (!Array.isArray(v) && typeof v === 'string') {
+                      const s = v.trim();
+                      if (s) {
+                        try {
+                          const parsed = JSON.parse(s);
+                          arr = Array.isArray(parsed) ? parsed : s.split(/\r?\n|,/);
+                        } catch {
+                          arr = s.split(/\r?\n|,/);
+                        }
+                      }
+                    }
+                    arr = arr.filter(Boolean);
+                    return arr.length
+                      ? arr.map((s, i) => (
+                          <span key={i} className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-xs">{String(s)}</span>
+                        ))
+                      : <span>-</span>;
+                  })()}
                 </div>
               </div>
             </div>
@@ -363,25 +466,53 @@ export const FullReport: React.FC<{ appraisalId: string; onBack: () => void }> =
               <div className="md:col-span-2">
                 <div className="text-sm text-gray-700 mb-2">الخدمات والمراكز الحكومية:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(row.public_services as any[] | null)?.length ? (
-                    (row.public_services as any[]).map((s, i) => (
-                      <span key={i} className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs">{String(s)}</span>
-                    ))
-                  ) : (
-                    <span>-</span>
-                  )}
+                  {(() => {
+                    const v: any = (row as any).public_services;
+                    let arr: any[] = Array.isArray(v) ? v : [];
+                    if (!Array.isArray(v) && typeof v === 'string') {
+                      const s = v.trim();
+                      if (s) {
+                        try {
+                          const parsed = JSON.parse(s);
+                          arr = Array.isArray(parsed) ? parsed : s.split(/\r?\n|,/);
+                        } catch {
+                          arr = s.split(/\r?\n|,/);
+                        }
+                      }
+                    }
+                    arr = arr.filter(Boolean);
+                    return arr.length
+                      ? arr.map((s, i) => (
+                          <span key={i} className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs">{String(s)}</span>
+                        ))
+                      : <span>-</span>;
+                  })()}
                 </div>
               </div>
               <div className="md:col-span-2">
                 <div className="text-sm text-gray-700 mb-2">الخدمات الصحية والطبية:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(row.health_services as any[] | null)?.length ? (
-                    (row.health_services as any[]).map((s, i) => (
-                      <span key={i} className="px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-200 text-xs">{String(s)}</span>
-                    ))
-                  ) : (
-                    <span>-</span>
-                  )}
+                  {(() => {
+                    const v: any = (row as any).health_services;
+                    let arr: any[] = Array.isArray(v) ? v : [];
+                    if (!Array.isArray(v) && typeof v === 'string') {
+                      const s = v.trim();
+                      if (s) {
+                        try {
+                          const parsed = JSON.parse(s);
+                          arr = Array.isArray(parsed) ? parsed : s.split(/\r?\n|,/);
+                        } catch {
+                          arr = s.split(/\r?\n|,/);
+                        }
+                      }
+                    }
+                    arr = arr.filter(Boolean);
+                    return arr.length
+                      ? arr.map((s, i) => (
+                          <span key={i} className="px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-200 text-xs">{String(s)}</span>
+                        ))
+                      : <span>-</span>;
+                  })()}
                 </div>
               </div>
             </div>

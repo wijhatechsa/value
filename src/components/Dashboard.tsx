@@ -2,6 +2,7 @@
 import { useAuth } from '../contexts/AuthContext';
 import { Property } from '../lib/supabase';
 import { PropertyListSmart } from './PropertyListSmart';
+import { PropertyListGrouped } from './PropertyListGrouped';
 import { PropertyDetails } from './PropertyDetails';
 import { FullReport } from './FullReport';
 import { supabase } from '../lib/supabase';
@@ -156,7 +157,7 @@ export const Dashboard: React.FC = () => {
                 </button>
               </div>
             )}
-            <PropertyListSmart onSelectProperty={handleSelectProperty} />
+            <PropertyListGrouped onSelectProperty={handleSelectProperty} />
           </>
         )}
 
